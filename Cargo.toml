@@ -4,6 +4,12 @@ version = "0.2.0"
 edition = "2021"
 description = "Zero-bloat parallel cryptographic signer and verifier for safetensors model shards"
 license = "MIT"
+repository = "https://github.com/foxhackerzdevs/stverify"
+homepage = "https://github.com/foxhackerzdevs/stverify"
+documentation = "https://docs.rs/stverify"
+readme = "README.md"
+keywords = ["safetensors", "ed25519", "cryptography", "llm", "security"]
+categories = ["command-line-utilities", "cryptography"]
 
 [dependencies]
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
