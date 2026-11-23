@@ -114,22 +114,86 @@ stverify verify model-00001-of-00004.safetensors signing.pub model-00001.sig
 
 ---
 
-## Kubernetes Init-Container Integration
+## Docker & Container Usage
 
-Deploy `stverify` as a lightweight init-container to gate model execution in Confidential GPU pods:
+The container image is built multi-stage with `musl` into a minimal `FROM scratch` runtime (~1.5 MB static binary) with zero shell, zero libc, and running as non-root UID `65532:65532`.
+
+### Build & Run Locally
+```bash
+# Build static scratch image
+docker build -t foxhackerz/stverify:0.2.0 .
+
+# Verify a model directory with mounted read-only keys
+docker run --rm \
+  -v $(pwd)/models:/models:ro \
+  -v $(pwd)/keys:/keys:ro \
+  foxhackerz/stverify:0.2.0 verify-dir /models/llama-3-70b /keys/signing.pub
+```
+
+---
+
+## Kubernetes Confidential GPU Pod Integration
+
+In Confidential Computing clusters (e.g. multi-tenant NVIDIA B300 nodes), `stverify` acts as a pre-load gate in an `initContainer`. The main inference runtime container cannot start unless `stverify` exits with code `0`. Mounting weights `readOnly: true` prevents post-verification tampering.
+
+See full deployment manifest in [`deploy/k8s-confidential-pod.yaml`](file:///c:/Users/Abhrankan/Downloads/stverify/deploy/k8s-confidential-pod.yaml):
 
 ```yaml
-initContainers:
-  - name: verify-model-weights
-    image: ghcr.io/foxhackerzdevs/stverify:latest
-    command: ["stverify", "verify-dir", "/models/llama-3-70b", "/etc/keys/model-signer.pub"]
-    volumeMounts:
-      - name: model-weights
-        mountPath: /models/llama-3-70b
-      - name: signing-pubkey
-        mountPath: /etc/keys/model-signer.pub
-        subPath: model-signer.pub
-        readOnly: true
+apiVersion: v1
+kind: Pod
+metadata:
+  name: confidential-llm-inference
+  labels:
+    app: sovereign-llm
+    security.foxhackerz.dev/verified-weights: "true"
+spec:
+  restartPolicy: Never
+
+  # InitContainer blocks GPU workload startup unless all safetensors shards verify
+  initContainers:
+    - name: stverify-gate
+      image: ghcr.io/foxhackerzdevs/stverify:0.2.0
+      args:
+        - "verify-dir"
+        - "/models/llama-3-70b"
+        - "/etc/stverify/signing.pub"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65532
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: model-weights
+          mountPath: /models/llama-3-70b
+          readOnly: true
+        - name: signing-pubkey
+          mountPath: /etc/stverify
+          readOnly: true
+
+  # Main GPU Inference Runtime (only executes after stverify exits 0)
+  containers:
+    - name: vllm-inference
+      image: vllm/vllm-openai:latest
+      args:
+        - "--model=/models/llama-3-70b"
+        - "--load-format=safetensors"
+      resources:
+        limits:
+          nvidia.com/gpu: 4
+      volumeMounts:
+        - name: model-weights
+          mountPath: /models/llama-3-70b
+          readOnly: true
+
+  volumes:
+    - name: model-weights
+      persistentVolumeClaim:
+        claimName: verified-model-pvc
+    - name: signing-pubkey
+      configMap:
+        name: stverify-release-pubkey
 ```
 
 ---

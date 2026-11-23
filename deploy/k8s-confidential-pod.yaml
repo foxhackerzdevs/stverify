@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: confidential-llm-inference
+  labels:
+    app: sovereign-llm
+    security.foxhackerz.dev/verified-weights: "true"
+spec:
+  restartPolicy: Never
+
+  # InitContainer blocks GPU workload startup unless all safetensors shards verify
+  initContainers:
+    - name: stverify-gate
+      image: ghcr.io/foxhackerzdevs/stverify:0.2.0
+      args:
+        - "verify-dir"
+        - "/models/llama-3-70b"
+        - "/etc/stverify/signing.pub"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 65532
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: model-weights
+          mountPath: /models/llama-3-70b
+          readOnly: true
+        - name: signing-pubkey
+          mountPath: /etc/stverify
+          readOnly: true
+
+  # Main GPU Inference Runtime (only executes after stverify exits 0)
+  containers:
+    - name: vllm-inference
+      image: vllm/vllm-openai:latest
+      args:
+        - "--model=/models/llama-3-70b"
+        - "--load-format=safetensors"
+      resources:
+        limits:
+          nvidia.com/gpu: 4
+      volumeMounts:
+        - name: model-weights
+          mountPath: /models/llama-3-70b
+          readOnly: true
+
+  volumes:
+    - name: model-weights
+      persistentVolumeClaim:
+        claimName: verified-model-pvc
+    - name: signing-pubkey
+      configMap:
+        name: stverify-release-pubkey
