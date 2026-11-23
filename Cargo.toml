@@ -1,8 +1,8 @@
 [package]
 name = "stverify"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Zero-bloat cryptographic signer and verifier for safetensors model weights"
+description = "Zero-bloat parallel cryptographic signer and verifier for safetensors model shards"
 license = "MIT"
 
 [dependencies]
@@ -10,3 +10,4 @@ ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 rand = "0.8"
 sha2 = "0.10"
 hex = "0.4"
+rayon = "1.10"
