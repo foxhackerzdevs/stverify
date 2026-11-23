@@ -31,7 +31,7 @@ Installation
 Build a static release binary from source:
 
 ```bash
-git clone https://github.com/Abhrankan-Chakrabarti/stverify.git
+git clone https://github.com/foxhackerzdevs/stverify.git
 cd stverify
 cargo build --release
 ```
