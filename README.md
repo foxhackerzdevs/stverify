@@ -1,5 +1,9 @@
 # `stverify`
 
+[![Crates.io](https://img.shields.io/crates/v/stverify.svg)](https://crates.io/crates/stverify)
+[![docs.rs](https://docs.rs/stverify/badge.svg)](https://docs.rs/stverify)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **Zero-bloat parallel cryptographic signer and integrity verifier for `.safetensors` model weights.**
 
 Built by [Fox Hackerz](https://github.com/foxhackerzdevs) for multi-tenant GPU enclaves, sovereign AI clusters, and zero-trust inference pipelines.
@@ -35,6 +39,11 @@ However, silicon isolation cannot protect a workload if **tampered, poisoned, or
 ---
 
 ## Installation
+
+### Install via Cargo (Recommended)
+```bash
+cargo install stverify
+```
 
 ### Build from Source
 ```bash
