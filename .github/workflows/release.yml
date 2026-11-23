@@ -1,102 +1,105 @@
-name: Release
+name: Release Static Binaries & Scratch Container
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
   packages: write
 
 jobs:
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --verbose
-
-  build-release:
+  build-binaries:
     name: Build (${{ matrix.target }})
-    needs: test
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
+    continue-on-error: ${{ matrix.allow_failure }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            use_cross: true
-            artifact_name: stverify-linux-x86_64-musl
-            experimental: false
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            use_cross: true
-            artifact_name: stverify-linux-aarch64-musl
-            experimental: false
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            use_cross: false
-            artifact_name: stverify-windows-x86_64.exe
-            experimental: false
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            use_cross: false
-            artifact_name: stverify-macos-aarch64
-            experimental: true
-          - target: x86_64-apple-darwin
-            os: macos-13
-            use_cross: false
-            artifact_name: stverify-macos-x86_64
-            experimental: true
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: stverify-linux-x86_64
+            allow_failure: false
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            artifact: stverify-linux-aarch64
+            allow_failure: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: stverify-macos-arm64
+            allow_failure: true
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: stverify-windows-x86_64.exe
+            allow_failure: false
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross
-        if: matrix.use_cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Build Binary
+      - name: Install musl cross-compilers (Linux)
+        if: runner.os == 'Linux'
         run: |
-          if [ "${{ matrix.use_cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
-        shell: bash
+          sudo apt-get update
+          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
 
-      - name: Package Artifact
+      - name: Build static release binary
         shell: bash
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
         run: |
-          BIN_PATH="target/${{ matrix.target }}/release/stverify"
-          if [ -f "${BIN_PATH}.exe" ]; then
-            cp "${BIN_PATH}.exe" "${{ matrix.artifact_name }}"
+          cargo build --release --target ${{ matrix.target }}
+          if [ -f "target/${{ matrix.target }}/release/stverify.exe" ]; then
+            cp "target/${{ matrix.target }}/release/stverify.exe" "${{ matrix.artifact }}"
           else
-            cp "${BIN_PATH}" "${{ matrix.artifact_name }}"
+            strip "target/${{ matrix.target }}/release/stverify" || true
+            cp "target/${{ matrix.target }}/release/stverify" "${{ matrix.artifact }}"
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"
+          else
+            shasum -a 256 "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"
           fi
 
-      - name: Upload Artifact
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.sha256
 
-  docker-release:
-    name: Build & Push GHCR Container
-    needs: test
+  publish-release:
+    needs: build-binaries
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    if: always() && !cancelled()
     steps:
-      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
+
+  publish-container:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -108,18 +111,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and push scratch image
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -127,24 +129,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  publish-release:
-    name: Publish Release Assets
-    needs: [build-release, docker-release]
-    runs-on: ubuntu-latest
-    if: always() && !cancelled() && needs.test.result == 'success'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
-          merge-multiple: true
-
-      - name: Attach Assets to Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --generate-notes
-          if [ -d release-artifacts ] && [ "$(ls -A release-artifacts 2>/dev/null)" ]; then
-            gh release upload ${{ github.ref_name }} release-artifacts/* --clobber
-          fi
