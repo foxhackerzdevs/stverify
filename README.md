@@ -136,7 +136,7 @@ docker run --rm \
 
 In Confidential Computing clusters (e.g. multi-tenant NVIDIA B300 nodes), `stverify` acts as a pre-load gate in an `initContainer`. The main inference runtime container cannot start unless `stverify` exits with code `0`. Mounting weights `readOnly: true` prevents post-verification tampering.
 
-See full deployment manifest in `deploy/k8s-confidential-pod.yaml`:
+See full deployment manifest in [`deploy/k8s-confidential-pod.yaml`](./deploy/k8s-confidential-pod.yaml):
 
 ```yaml
 apiVersion: v1
@@ -200,4 +200,4 @@ spec:
 
 ## License
 
-MIT License — see LICENSE for details.
+MIT License — see [LICENSE](./LICENSE) for details.
