@@ -33,7 +33,7 @@ However, silicon isolation cannot protect a workload if **tampered, poisoned, or
 ## Threat Model Fit
 
 > For an in-depth breakdown of the four cryptographic defense layers, hardware attestation, and the multi-tenant GPU threat model, read the engineering architecture post:  
-> 📖 [**Zero-Trust Silicon to VRAM: Securing Multi-Tenant Sovereign AI Factories**](https://abhrankan.duckdns.org/writing/zero-trust-silicon-to-vram/) (Mirror: [abhrankan.netlify.app](https://abhrankan.netlify.app/writing/zero-trust-silicon-to-vram/)).
+> 📖 [**Zero-Trust Silicon to VRAM: Securing Multi-Tenant Sovereign AI Factories**](https://abhrankan.duckdns.org/writing/zero-trust-silicon-to-vram/).
 
 | Layer | Security Control |
 | :--- | :--- |
