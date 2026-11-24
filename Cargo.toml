@@ -1,6 +1,6 @@
 [package]
 name = "stverify"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "Zero-bloat parallel cryptographic signer and verifier for safetensors model shards"
 license = "MIT"
@@ -10,6 +10,14 @@ documentation = "https://docs.rs/stverify"
 readme = "README.md"
 keywords = ["safetensors", "ed25519", "cryptography", "llm", "security"]
 categories = ["command-line-utilities", "cryptography"]
+
+[lib]
+name = "stverify"
+path = "src/lib.rs"
+
+[[bin]]
+name = "stverify"
+path = "src/main.rs"
 
 [dependencies]
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
