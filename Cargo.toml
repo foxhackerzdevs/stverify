@@ -1,6 +1,6 @@
 [package]
 name = "stverify"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Zero-bloat parallel cryptographic signer and verifier for safetensors model shards"
 license = "MIT"

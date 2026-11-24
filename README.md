@@ -169,13 +169,13 @@ The container image is built multi-stage with `musl` into a minimal `FROM scratc
 ### Build & Run Locally
 ```bash
 # Build static scratch image
-docker build -t foxhackerz/stverify:0.2.2 .
+docker build -t foxhackerz/stverify:0.2.3 .
 
 # Verify a model directory with mounted read-only keys
 docker run --rm \
   -v $(pwd)/models:/models:ro \
   -v $(pwd)/keys:/keys:ro \
-  foxhackerz/stverify:0.2.2 verify-dir /models/llama-3-70b /keys/signing.pub
+  foxhackerz/stverify:0.2.3 verify-dir /models/llama-3-70b /keys/signing.pub
 ```
 
 ---
@@ -200,7 +200,7 @@ spec:
   # InitContainer blocks GPU workload startup unless all safetensors shards verify
   initContainers:
     - name: stverify-gate
-      image: ghcr.io/foxhackerzdevs/stverify:0.2.2
+      image: ghcr.io/foxhackerzdevs/stverify:0.2.3
       args:
         - "verify-dir"
         - "/models/llama-3-70b"
