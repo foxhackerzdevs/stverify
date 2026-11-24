@@ -11,7 +11,7 @@ spec:
   # InitContainer blocks GPU workload startup unless all safetensors shards verify
   initContainers:
     - name: stverify-gate
-      image: ghcr.io/foxhackerzdevs/stverify:0.2.1
+      image: ghcr.io/foxhackerzdevs/stverify:0.2.2
       args:
         - "verify-dir"
         - "/models/llama-3-70b"

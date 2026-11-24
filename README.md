@@ -2,9 +2,12 @@
 
 [![Crates.io](https://img.shields.io/crates/v/stverify.svg)](https://crates.io/crates/stverify)
 [![docs.rs](https://docs.rs/stverify/badge.svg)](https://docs.rs/stverify)
+[![CI](https://github.com/foxhackerzdevs/stverify/actions/workflows/ci.yml/badge.svg)](https://github.com/foxhackerzdevs/stverify/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Zero-bloat parallel cryptographic signer and integrity verifier for `.safetensors` model weights.**
+
+Available as both a **standalone static CLI binary** and a **Rust library crate**.
 
 Built by [Fox Hackerz](https://github.com/foxhackerzdevs) for multi-tenant GPU enclaves, sovereign AI clusters, and zero-trust inference pipelines.
 
@@ -18,8 +21,8 @@ However, silicon isolation cannot protect a workload if **tampered, poisoned, or
 
 `stverify` closes the artifact supply-chain gap before weights ever touch VRAM:
 
-- **⚡ High-Throughput Parallel Shard Hashing**: Powered by `rayon`, hashes dozens of tensor shards in parallel across CPU cores—tailored for 70B–405B+ parameter models (e.g., Llama-3, DeepSeek, Qwen) split across multi-gigabyte files.
-- **🦀 Zero-Bloat Static Binary**: Pure Rust with minimal, audited cryptographic primitives (`ed25519-dalek` and `sha2`). No Python runtime, no OpenSSL dynamic linking, no container bloat.
+- **⚡ High-Throughput Parallel Shard Hashing**: Powered by `rayon`, hashes dozens of tensor shards concurrently across CPU cores—tailored for 70B–405B+ parameter models (e.g., Llama-3, DeepSeek, Qwen) split across multi-gigabyte files.
+- **🦀 Zero-Bloat Static Binary & Library**: Pure Rust with minimal, audited cryptographic primitives (`ed25519-dalek` and `sha2`). No Python runtime, no OpenSSL dynamic linking, no container bloat.
 - **💾 Constant-Memory Streaming**: Hashes multi-gigabyte tensor shards in 64 KB streaming buffers—verifies massive models inside memory-constrained confidential VMs without OOM spikes.
 - **📜 Canonical Manifest Integrity**: `sign-dir` builds a deterministic, canonical manifest (`<sha256> <filename>`) across all shards, cryptographically signed with Ed25519. `verify-dir` detects missing shards, injected rogue shards, and bit-level modifications in a single parallel pass.
 - **🔍 Framing Validation**: Validates 8-byte little-endian `.safetensors` header length boundaries and enforces sanity caps (100 MB max header size) before reading payload bytes.
@@ -40,23 +43,27 @@ However, silicon isolation cannot protect a workload if **tampered, poisoned, or
 
 ## Installation
 
-### Install via Cargo (Recommended)
+### 1. Install CLI via Cargo
 ```bash
 cargo install stverify
 ```
 
-### Build from Source
+### 2. Add as a Rust Library
+```bash
+cargo add stverify
+```
+
+### 3. Build from Source
 ```bash
 git clone https://github.com/foxhackerzdevs/stverify.git
 cd stverify
 cargo build --release
 ```
-
 The compiled static binary will be located at `./target/release/stverify`.
 
 ---
 
-## Usage
+## CLI Usage
 
 ### 1. Generate an Ed25519 Signing Keypair
 ```bash
@@ -111,6 +118,38 @@ stverify verify model-00001-of-00004.safetensors signing.pub model-00001.sig
 
 ---
 
+## Rust Library API
+
+You can integrate `stverify` directly into custom Rust inference runtimes (e.g. Candle, Burn, vLLM Rust wrappers) or orchestration agents:
+
+```rust
+use std::path::Path;
+use stverify::{verify_dir, verify_single, sign_dir};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Verify an entire multi-shard model directory in parallel before loading weights
+    let verified_shards = verify_dir(
+        Path::new("/models/llama-3-70b"),
+        "/etc/stverify/signing.pub",
+    )?;
+    println!("[OK] Verified {} shards in parallel", verified_shards);
+
+    // Verify a single shard
+    let digest = verify_single(
+        Path::new("model-00001.safetensors"),
+        "signing.pub",
+        "model-00001.sig",
+    )?;
+    println!("SHA-256: {}", hex::encode(digest));
+
+    Ok(())
+}
+```
+
+Full API documentation and signatures are available on [docs.rs/stverify](https://docs.rs/stverify).
+
+---
+
 ## Exit Codes
 
 `stverify` returns explicit, machine-readable exit codes suitable for orchestration and automation scripts:
@@ -130,13 +169,13 @@ The container image is built multi-stage with `musl` into a minimal `FROM scratc
 ### Build & Run Locally
 ```bash
 # Build static scratch image
-docker build -t foxhackerz/stverify:0.2.1 .
+docker build -t foxhackerz/stverify:0.2.2 .
 
 # Verify a model directory with mounted read-only keys
 docker run --rm \
   -v $(pwd)/models:/models:ro \
   -v $(pwd)/keys:/keys:ro \
-  foxhackerz/stverify:0.2.1 verify-dir /models/llama-3-70b /keys/signing.pub
+  foxhackerz/stverify:0.2.2 verify-dir /models/llama-3-70b /keys/signing.pub
 ```
 
 ---
@@ -161,7 +200,7 @@ spec:
   # InitContainer blocks GPU workload startup unless all safetensors shards verify
   initContainers:
     - name: stverify-gate
-      image: ghcr.io/foxhackerzdevs/stverify:0.2.1
+      image: ghcr.io/foxhackerzdevs/stverify:0.2.2
       args:
         - "verify-dir"
         - "/models/llama-3-70b"
